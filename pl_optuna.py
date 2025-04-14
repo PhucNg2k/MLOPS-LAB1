@@ -12,15 +12,8 @@ from datetime import datetime
 import mlflow
 import mlflow.pytorch
 
-
-import subprocess
-import threading
-import yaml
-
 import optuna
 from optuna.integration import PyTorchLightningPruningCallback
-
-from packaging import version
 
 import torch
 from torch import nn
@@ -32,16 +25,13 @@ from torchvision import datasets
 from torchvision import transforms
 
 
-if version.parse(pl.__version__) < version.parse("1.6.0"):
-    raise RuntimeError("PyTorch Lightning>=1.6.0 is required for this example.")
-
-
 BATCHSIZE = 128
 CLASSES = 10
-EPOCHS = 5
-TRIALS = 5
+EPOCHS = 2
+TRIALS = 3
 DIR = os.getcwd()
 
+# python 3.10.16
 
 class Net(nn.Module):
     def __init__(self, dropout: float, output_dims: List[int]) -> None:
@@ -104,7 +94,7 @@ class FashionMNISTDataModule(pl.LightningDataModule):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
-       
+
 
         # augmentation
         self.train_transform = transforms.Compose([
@@ -116,6 +106,7 @@ class FashionMNISTDataModule(pl.LightningDataModule):
         self.test_transform = transforms.ToTensor()
 
     def setup(self, stage: Optional[str] = None) -> None:
+
         self.mnist_test = datasets.FashionMNIST(
             self.data_dir, train=False, download=True, transform=self.test_transform
         )
@@ -151,6 +142,10 @@ class FashionMNISTDataModule(pl.LightningDataModule):
 
 
 def objective(trial: optuna.trial.Trial) -> float:
+
+    # Set random seed for reproducibility
+    pl.seed_everything(42)
+
     # We optimize the number of layers, hidden units in each layer and dropouts.
     n_layers = trial.suggest_int("n_layers", 1, 3)
     dropout = trial.suggest_float("dropout", 0.2, 0.5)
@@ -158,57 +153,11 @@ def objective(trial: optuna.trial.Trial) -> float:
         trial.suggest_int("n_units_l{}".format(i), 4, 128, log=True) for i in range(n_layers)
     ]
 
-    model = LightningNet(dropout, output_dims)
-    datamodule = FashionMNISTDataModule(data_dir=f"{DIR}/data", batch_size=BATCHSIZE)
-
     # Use a trial-specific checkpoint directory
-    trial_id = trial._trial_id
-    checkpoint_dir = os.path.join(DIR, "checkpoints", f"trial_{trial_id}")
+    trial_runid = trial._trial_id
+    checkpoint_dir = os.path.join(DIR, "checkpoints", f"trial_{trial_runid}")
     os.makedirs(checkpoint_dir, exist_ok=True)
 
-    # Save checkpoints
-    checkpoint_callback = ModelCheckpoint(
-        monitor='val_acc',
-        dirpath=checkpoint_dir,
-        filename=f"{trial_id}-" + 'epoch={epoch}-val_acc={val_acc:.2f}',
-        save_top_k=3,
-        mode='max'
-    )
-    
-    early_stop_callback = EarlyStopping(
-        monitor='val_acc',
-        patience=3,
-        mode='max'
-    )
-
-    callback_list = [early_stop_callback, PyTorchLightningPruningCallback(trial, monitor="val_acc"), checkpoint_callback]
-
-    mlflow_uri = "http://localhost:8080"
-    experiment_name = "Pytorch_Optuna"
-
-    mlflow.set_tracking_uri(mlflow_uri)
-    mlflow.set_experiment(experiment_name)
-
-    mlflow_logger = MLFlowLogger( # Pytoch Lightning
-        experiment_name=experiment_name,
-        tracking_uri=mlflow_uri,
-        run_name=f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    )
-
-    trainer = pl.Trainer(
-        logger=mlflow_logger,
-        enable_checkpointing=True,
-        max_epochs=EPOCHS,
-        accelerator="auto",
-        devices=1,
-        callbacks=callback_list,
-    )
-
-    # Log hyperparameters
-    hyperparameters = dict(n_layers=n_layers, dropout=dropout, output_dims=output_dims)
-    trainer.logger.log_hyperparams(hyperparameters)
-
-    # Log dataset details
     dataset_info = {
         "dataset_name": "FashionMNIST",
         "source": "torchvision.datasets.FashionMNIST",
@@ -219,39 +168,95 @@ def objective(trial: optuna.trial.Trial) -> float:
         "val_samples": 5000,
         "test_samples": 10000
     }
-    mlflow.log_params(dataset_info) # MLFLOW
+    
+    mlflow_uri = "http://localhost:8080"
+    experiment_name = "Pytorch_Optuna"
+
+    mlflow.set_tracking_uri(mlflow_uri)
+    mlflow.set_experiment(experiment_name)
 
 
-    with mlflow.start_run(nested=True):
+    mlflow_logger = MLFlowLogger( # Pytoch Lightning
+        experiment_name=experiment_name,
+        tracking_uri=mlflow_uri,
+        run_name=f"Trial:{trial_runid}_{datetime.now().strftime('%d/%m/%Y_%H:%M')}"
+    )
+
+    # Save checkpoints
+    checkpoint_callback = ModelCheckpoint(
+        monitor='val_acc',
+        dirpath=checkpoint_dir,
+        filename=f"{trial_runid}-" + 'epoch={epoch}-val_acc={val_acc:.2f}',
+        save_top_k=3,
+        mode='max'
+    )
+    
+    early_stop_callback = EarlyStopping(
+        monitor='val_acc',
+        patience=3,
+        mode='max'
+    )
+
+    model = LightningNet(dropout, output_dims)
+    datamodule = FashionMNISTDataModule(data_dir=f"{DIR}/data", batch_size=BATCHSIZE)
+
+
+    trainer = pl.Trainer(
+        logger=mlflow_logger,
+        enable_checkpointing=True,
+        max_epochs=EPOCHS,
+        accelerator="auto",
+        devices=1,
+        callbacks=[early_stop_callback, PyTorchLightningPruningCallback(trial, monitor="val_acc"), checkpoint_callback],
+    )
+
+ 
+    # Start MLflow run first
+    with mlflow.start_run(nested=True) as run:
+
+        # for mlflow
+        mlflow_runid = run.info.run_id
+        
+
+        # Log hyperparameters
+        hyperparameters = dict(n_layers=n_layers, dropout=dropout, output_dims=output_dims)
+        trainer.logger.log_hyperparams(hyperparameters)
+        
         # Train the model
         trainer.fit(model, datamodule=datamodule)
 
+        mlflow.set_tag("mlflow.runName", f"trial:{trial_runid}_Summary")
+
         # Load the best checkpoint into the model (if available)
         if checkpoint_callback.best_model_path:
-            # Load the best checkpoint to ensure the model has the best weights
-            model = LightningNet.load_from_checkpoint(
-                checkpoint_callback.best_model_path,
-                dropout=dropout,  # Pass constructor arguments required by LightningNet
-                output_dims=output_dims
-            )
-            mlflow.log_param("best_checkpoint_path", checkpoint_callback.best_model_path)
+            ckpt_path = checkpoint_callback.best_model_path
+            print(f"BEST CHECKPOINT PATH OF TRIAL {trial_runid}: {ckpt_path}")
+
+            
+            modelBest = LightningNet.load_from_checkpoint(ckpt_path, dropout=dropout, output_dims=output_dims)
+            mlflow.pytorch.log_model(modelBest, f"Trial_{trial_runid}_BestModel")
+            print("BEST MODEL LOADED")
+
+            mlflow.log_param("best_checkpoint_path", ckpt_path)
+
             for i, path in enumerate(checkpoint_callback.best_k_models.keys()):
                 mlflow.log_param(f"checkpoint_{i}_path", path)
                 mlflow.log_param(f"checkpoint_{i}_val_acc", checkpoint_callback.best_k_models[path].item())
-            mlflow.log_artifacts(checkpoint_dir, artifact_path=f"checkpoints/trial_{trial_id}")
 
+            mlflow.log_artifacts(checkpoint_dir, artifact_path=f"Trial_{trial_runid}_ckpt")
 
-    # Evaluate on validation set explicitly if needed
-    val_result = trainer.validate(model, datamodule=datamodule, verbose=False)
-    val_acc = val_result[0].get("val_acc", None)
+            # Test best model      
+            test_result = trainer.test(modelBest, datamodule=datamodule, verbose=False)
+            test_acc = test_result[0].get("test_acc", None)
+            if test_acc is not None:
+                mlflow.log_metric("test_acc", test_acc)
 
-    if val_acc is None:
-        raise ValueError("val_acc not found in validation metrics")
-
-    # Log model and test
-    mlflow.pytorch.log_model(model, "model")
-    trainer.test(model, datamodule=datamodule)
-
+        # Evaluate on validation set
+        val_result = trainer.validate(modelBest, datamodule=datamodule, verbose=False)
+        val_acc = val_result[0].get("val_acc", None)
+        if val_acc is None:
+            raise ValueError("val_acc not found in validation metrics")
+        
     return val_acc
 
 if __name__ == "__main__":
@@ -274,17 +279,20 @@ if __name__ == "__main__":
     study = optuna.create_study(direction="maximize", pruner=pruner)
     study.optimize(objective, n_trials=TRIALS, timeout=600)
 
-
+    print("\n\n")
+    print("*"*20)
     print("Number of finished trials: {}".format(len(study.trials)))
-
-    print("Best trial:")
+    
     trial = study.best_trial
+    print(f"Best trial: trial {trial._trial_id}")
 
-    print("  Value: {}".format(trial.value))
+    print("\tValidation accuracy: {:.4f}".format(trial.value))
 
-    print("  Params: ")
+    print("\tParams: ")
     for key, value in trial.params.items():
-        print("    {}: {}".format(key, value))
+        print("\t\t{}: {:.4f}".format(key, value))
+    
+    print("*"*20)
 
 
 # mlflow server --host localhost --port 8080
