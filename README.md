@@ -2,18 +2,43 @@
 
 ## 👤 Thông tin sinh viên
 
-| Họ và tên          | MSSV      |
-|------------------- |-----------|
-| Nguyễn Thượng Phúc | 22521134 |
+| Họ và tên           | MSSV      |
+|---------------------|-----------|
+| Nguyễn Thượng Phúc  | 22521134  |
 
+---
 
-## Giới thiệu
-Project minh họa cách sử dụng **Optuna** để tối ưu hóa siêu tham số, **MLflow** để theo dõi thí nghiệm, và **PyTorch Lightning** để huấn luyện mô hình học sâu. Ví dụ sử dụng bộ dữ liệu FashionMNIST để tích hợp các công cụ này.
+## 🔧 Giới thiệu chung về Pipeline
 
-## Công nghệ sử dụng
-- **Optuna**: Tối ưu hóa siêu tham số.
-- **MLflow**: Theo dõi thí nghiệm và trực quan hóa kết quả.
-- **PyTorch Lightning**: Đơn giản hóa quá trình huấn luyện mô hình PyTorch.
+Dự án này xây dựng một **pipeline huấn luyện mô hình học sâu** sử dụng:
+- **Optuna** để tự động tối ưu siêu tham số.
+- **MLflow** để tracking thí nghiệm (logs, checkpoint, hyperparams,...).
+- **PyTorch Lightning** để đơn giản hóa training loop và tổ chức code rõ ràng.
+
+Pipeline hoạt động hoàn toàn tự động:
+1. Train mạng neural network với bộ dataset FashionMnist
+2. **Tạo study Optuna** để chạy nhiều trial huấn luyện với siêu tham số khác nhau, tối ưu theo validation accuracy.
+3. **MLflow** ghi lại mọi thông tin của từng trial: model, val/test accuracy, checkpoint,...
+4. Tự động dừng sớm trial kém hiệu quả với `EarlyStopping` và `PruningCallback`.
+5. Tự động lưu và tải lại checkpoint có validation accuracy tốt nhất.
+
+> 🔥 **Điểm mới / sáng tạo**:  
+> - Kết hợp đầy đủ cả 3 công cụ hiện đại: PytorchLightning + Optuna + MLflow.
+> - Cấu trúc lại pipeline để dễ mở rộng, dễ quản lý logs, mô hình.
+> - Có thể chạy chỉ với 1 dòng lệnh (`python pl_optuna.py -p`), mọi thứ còn lại được tự động hóa.
+
+---
+
+## 🧠 Công nghệ sử dụng và đặc điểm nổi bật
+
+| Công nghệ          | Vai trò                                                       |
+|-------------------|---------------------------------------------------------------|
+| **PyTorch Lightning** | Tổ chức training loop sạch, hỗ trợ callback, logger tự động |
+| **Optuna**         | Tối ưu hóa siêu tham số với pruning                          |
+| **MLflow**         | Ghi log thí nghiệm, checkpoint, model, metric                |
+| **FashionMNIST**   | Dataset minh họa (ảnh thời trang 28x28)                      |
+
+---
 
 ## Hướng dẫn cài đặt
 
@@ -41,11 +66,23 @@ Mở một terminal khác và chạy script huấn luyện với tính năng pru
 
 ## Kết quả
 
-Các siêu tham số tốt nhất và độ chính xác trên tập validation sẽ được hiển thị trên terminal.
+Kết quả từng trial sẽ hiện ở terminal (accuracy, params,...).
 
-Chi tiết thí nghiệm, bao gồm các metric, tham số và artifact, sẽ được lưu trên giao diện MLflow.
+MLflow UI sẽ lưu trữ:
+
++ Hyperparameters, metrics
+
++ Checkpoint model tốt nhất
+
++ Logs, artifacts
+
+Tên run sẽ được đặt theo định danh dễ đọc (VD: Trial:0_14/04/2025_18:32)
 
 ## Lưu ý
 Đảm bảo rằng mlflow server đã được khởi động trước khi chạy script huấn luyện.
 
 Có thể chỉnh sửa file pl_optuna.py để tùy chỉnh thí nghiệm theo nhu cầu.
+
+## 🎥 Video Demo
+
+[![Demo Video](https://img.youtube.com/vi/mela8dFpKq0/0.jpg)](https://www.youtube.com/watch?v=mela8dFpKq0)
