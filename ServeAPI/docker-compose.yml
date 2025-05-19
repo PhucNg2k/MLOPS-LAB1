@@ -1,0 +1,11 @@
+services:
+  api:
+    build: .
+    container_name: fashion-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../mlruns:/app/mlruns
+      - ../mlartifacts:/app/mlartifacts
+    environment:
+      - PYTHONUNBUFFERED=1

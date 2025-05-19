@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>FashionMNIST Classifier</title>
+    </head>
+
+    <body>
+        <h2>Upload image</h2>
+        <input type="file" id="fileInput" accept="image/*" onchange="previewImage()">
+        
+        <br>
+        <img id="preview" src="" alt="Uploaded image" style="max-width: 300px; display: none;">
+
+        <br>
+        <button onclick="predict()">Predict</button>
+        
+        <br>
+        <p id="result"></p>
+
+
+
+        <script>
+
+            function previewImage() {
+                const fileInput = document.getElementById("fileInput");
+                const preview = document.getElementById("preview");
+                if (fileInput.files.length) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
+                    }
+                    reader.readAsDataURL(fileInput.files[0])
+                }
+
+            }
+
+            async function predict() {
+                const fileInput = document.getElementById("fileInput");
+                if (!fileInput.files.length) {
+                    alert("Please upload an image!");
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append("file", fileInput.files[0]);
+                
+                const response = await fetch('/predict', {
+                    method: "POST",
+                    body: formData
+                });
+
+                const data = await response.json();
+                document.getElementById("result").innerText = "This is a " + data.prediction + ".";
+            }
+        </script>
+    </body>
+</html>
+
