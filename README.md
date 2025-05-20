@@ -1,87 +1,100 @@
-# 🚀 PyTorch Lightning với Optuna và MLflow
+# 🚀 PyTorch Lightning with Optuna and MLflow
 
-## 👤 Thông tin sinh viên
+<div align="center"> 
+<img src="https://raw.githubusercontent.com/pytorch/pytorch/master/docs/source/_static/img/pytorch-logo-dark.png" alt="PyTorch" height="60"/> &nbsp;&nbsp;&nbsp; <img src="https://raw.githubusercontent.com/Lightning-AI/lightning/master/docs/source-pytorch/_static/images/logo.png" alt="PyTorch Lightning" height="60"/> &nbsp;&nbsp;&nbsp; <img src="https://raw.githubusercontent.com/optuna/optuna/master/docs/image/optuna-logo.png" alt="Optuna" height="60"/> &nbsp;&nbsp;&nbsp;  
 
-| Họ và tên           | MSSV      |
+
+![MLflow](https://img.shields.io/badge/MLflow-0194E2?style=for-the-badge&logo=mlflow&logoColor=white)
+</div>
+
+## 👤 Student Information
+
+| Full Name           | Student ID |
 |---------------------|-----------|
-| Nguyễn Thượng Phúc  | 22521134  |
+| Nguyen Thuong Phuc  | 22521134  |
 
 ---
 
-## 🔧 Giới thiệu chung về Pipeline
+## 🔧 Pipeline Overview
 
-Dự án này xây dựng một **pipeline huấn luyện mô hình học sâu** sử dụng:
-- **Optuna** để tự động tối ưu siêu tham số.
-- **MLflow** để tracking thí nghiệm (logs, checkpoint, hyperparams,...).
-- **PyTorch Lightning** để đơn giản hóa training loop và tổ chức code rõ ràng.
+This project builds a **model training pipeline** for **image classification** using:
+- **Optuna** for automatic hyperparameter optimization.
+- **MLflow** for experiment tracking (logs, checkpoints, hyperparameters,...).
+- **PyTorch Lightning** to simplify training loops and organize code clearly.
 
-Pipeline hoạt động hoàn toàn tự động:
-1. Train mạng neural network với bộ dataset FashionMnist
-2. **Tạo study Optuna** để chạy nhiều trial huấn luyện với siêu tham số khác nhau, tối ưu theo validation accuracy.
-3. **MLflow** ghi lại mọi thông tin của từng trial: model, val/test accuracy, checkpoint,...
-4. Tự động dừng sớm trial kém hiệu quả với `EarlyStopping` và `PruningCallback`.
-5. Tự động lưu và tải lại checkpoint có validation accuracy tốt nhất.
+The pipeline operates completely automatically:
+1. Train neural networks with the FashionMnist dataset
+2. **Create an Optuna study** to run multiple training trials with different hyperparameters, optimizing for validation accuracy.
+3. **MLflow** records all information for each trial: model, val/test accuracy, checkpoints,...
+4. Automatically stop inefficient trials early with `EarlyStopping` and `PruningCallback`.
+5. Automatically save and reload checkpoints with the best validation accuracy.
 
-> 🔥 **Điểm mới / sáng tạo**:  
-> - Kết hợp đầy đủ cả 3 công cụ hiện đại: PytorchLightning + Optuna + MLflow.
-> - Cấu trúc lại pipeline để dễ mở rộng, dễ quản lý logs, mô hình.
-> - Có thể chạy chỉ với 1 dòng lệnh (`python pl_optuna.py -p`), mọi thứ còn lại được tự động hóa.
+> 🔥 **Innovations / creative points**:  
+> - Fully integrates all 3 modern tools: PytorchLightning + Optuna + MLflow.
+> - Restructured pipeline for easy expansion, easy management of logs and models.
+> - Can run with just one command line (`python pl_optuna.py -p`), everything else is automated.
 
 ---
 
-## 🧠 Công nghệ sử dụng và đặc điểm nổi bật
+## 🧠 Technologies Used and Key Features
 
-| Công nghệ          | Vai trò                                                       |
+| Technology          | Role                                                       |
 |-------------------|---------------------------------------------------------------|
-| **PyTorch Lightning** | Tổ chức training loop sạch, hỗ trợ callback, logger tự động |
-| **Optuna**         | Tối ưu hóa siêu tham số với pruning                          |
-| **MLflow**         | Ghi log thí nghiệm, checkpoint, model, metric                |
-| **FashionMNIST**   | Dataset minh họa (ảnh thời trang 28x28)                      |
+| **PyTorch Lightning** | Organize clean training loops, support for callbacks, automatic logging |
+| **Optuna**         | Hyperparameter optimization with pruning                          |
+| **MLflow**         | Log experiments, checkpoints, models, metrics                |
+| **FashionMNIST**   | Demo dataset (28x28 fashion images)                      |
 
 ---
 
-## Hướng dẫn cài đặt
+## Installation Guide
 
-1. Clone dự án từ GitHub:
+1. Clone the project from GitHub:
    ```bash
    git clone https://github.com/PhucNg2k/MLOPS-LAB1.git
    cd MLOPS-LAB1
-2. Cài đặt các thư viện cần thiết:
+   ```
+2. Install the necessary libraries:
    ```bash
-    pip install -r requirements.txt
-## Hướng dẫn sử dụng
-**Bước 1: Khởi động MLflow Server**
+   pip install -r requirements.txt
+   ```
 
-Mở một terminal và chạy lệnh sau để khởi động MLflow server:
+## Usage Guide
 
-    mlflow server --host localhost --port 8080
+**Step 1: Start the MLflow Server**
 
-Giao diện MLflow sẽ được hiển thị tại địa chỉ http://localhost:8080.
+Open a terminal and run the following command to start the MLflow server:
 
-**Bước 2: Chạy script huấn luyện**
+```bash
+mlflow server --host localhost --port 8080
+```
 
-Mở một terminal khác và chạy script huấn luyện với tính năng pruning:
+The MLflow interface will be available at http://localhost:8080.
 
-    python pl_optuna.py -p
+**Step 2: Run the training script**
 
-## Kết quả
+Open another terminal and run the training script with pruning enabled:
 
-Kết quả từng trial sẽ hiện ở terminal (accuracy, params,...).
+```bash
+python pl_optuna.py -p
+```
 
-MLflow UI sẽ lưu trữ:
+## Results
+
+The results of each trial will be displayed in the terminal (accuracy, params,...).
+
+MLflow UI will store:
 
 + Hyperparameters, metrics
-
-+ Checkpoint model tốt nhất
-
++ Best model checkpoints
 + Logs, artifacts
 
-Tên run sẽ được đặt theo định danh dễ đọc (VD: Trial:0_14/04/2025_18:32)
+Run names will be set with readable identifiers (E.g.: Trial:0_14/04/2025_18:32)
 
-## Lưu ý
-Đảm bảo rằng mlflow server đã được khởi động trước khi chạy script huấn luyện.
+## Notes
+Make sure the mlflow server is started before running the training script.
 
-Có thể chỉnh sửa file pl_optuna.py để tùy chỉnh thí nghiệm theo nhu cầu.
+You can modify the pl_optuna.py file to customize experiments according to your needs.
 
 ## 🎥 Video Demo
 
