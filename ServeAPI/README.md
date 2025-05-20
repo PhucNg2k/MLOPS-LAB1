@@ -57,3 +57,6 @@ To stop and remove containers:
 docker compose down
 ```
 
+## 🎥 Video Demo
+
+[![Demo Video](https://img.youtube.com/vi/mela8dFpKq0/0.jpg)](https://youtu.be/6A9RmyL02_k)
