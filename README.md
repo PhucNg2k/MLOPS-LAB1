@@ -1,10 +1,19 @@
 # 🚀 PyTorch Lightning with Optuna and MLflow
 
 <div align="center"> 
-<img src="https://raw.githubusercontent.com/pytorch/pytorch/master/docs/source/_static/img/pytorch-logo-dark.png" alt="PyTorch" height="60"/> &nbsp;&nbsp;&nbsp; <img src="https://raw.githubusercontent.com/Lightning-AI/lightning/master/docs/source-pytorch/_static/images/logo.png" alt="PyTorch Lightning" height="60"/> &nbsp;&nbsp;&nbsp; <img src="https://raw.githubusercontent.com/optuna/optuna/master/docs/image/optuna-logo.png" alt="Optuna" height="60"/> &nbsp;&nbsp;&nbsp;  
-
-
-![MLflow](https://img.shields.io/badge/MLflow-0194E2?style=for-the-badge&logo=mlflow&logoColor=white)
+  <span style="background-color:white; padding:6px; border-radius:8px;">
+    <img src="https://raw.githubusercontent.com/pytorch/pytorch/master/docs/source/_static/img/pytorch-logo-dark.png" alt="PyTorch" height="60"/>
+  </span>
+  &nbsp;&nbsp;&nbsp;
+  <span style="background-color:white; padding:6px; border-radius:8px;">
+    <img src="https://raw.githubusercontent.com/Lightning-AI/lightning/master/docs/source-pytorch/_static/images/logo.png" alt="PyTorch Lightning" height="60"/>
+  </span>
+  &nbsp;&nbsp;&nbsp;
+  <span style="background-color:white; padding:6px; border-radius:8px;">
+    <img src="https://raw.githubusercontent.com/optuna/optuna/master/docs/image/optuna-logo.png" alt="Optuna" height="60"/>
+  </span>
+  <br>
+  <img src="https://img.shields.io/badge/MLflow-0194E2?style=for-the-badge&logo=mlflow&logoColor=white" alt="MLflow Badge"/>
 </div>
 
 ## 👤 Student Information
