@@ -24,6 +24,17 @@ from torch.utils.data import random_split
 from torchvision import datasets
 from torchvision import transforms
 
+# Import logging service
+from LOGGING_SERVICE.logger import LoggingManager
+
+# Initialize logging
+logging_manager = LoggingManager()
+logging_manager.setup_logging()
+
+# Get loggers
+syslog = logging_manager.get_logger('syslog')
+stdout = logging_manager.get_logger('stdout')
+stderr = logging_manager.get_logger('stderr')
 
 BATCHSIZE = 128
 CLASSES = 10
@@ -142,157 +153,189 @@ class FashionMNISTDataModule(pl.LightningDataModule):
 
 
 def objective(trial: optuna.trial.Trial) -> float:
+    try:
+        # Log trial start
+        stdout.info("")
+        stdout.info(f"Starting trial {trial._trial_id}")
 
-    # Set random seed for reproducibility
-    pl.seed_everything(42)
+        # Set random seed for reproducibility
+        pl.seed_everything(42)
 
-    # We optimize the number of layers, hidden units in each layer and dropouts.
-    n_layers = trial.suggest_int("n_layers", 1, 3)
-    dropout = trial.suggest_float("dropout", 0.2, 0.5)
-    output_dims = [
-        trial.suggest_int("n_units_l{}".format(i), 4, 128, log=True) for i in range(n_layers)
-    ]
+        # We optimize the number of layers, hidden units in each layer and dropouts.
+        n_layers = trial.suggest_int("n_layers", 1, 3)
+        dropout = trial.suggest_float("dropout", 0.2, 0.5)
+        output_dims = [
+            trial.suggest_int("n_units_l{}".format(i), 4, 128, log=True) for i in range(n_layers)
+        ]
 
-    # Use a trial-specific checkpoint directory
-    trial_runid = trial._trial_id
-    checkpoint_dir = os.path.join(DIR, "checkpoints", f"trial_{trial_runid}")
-    os.makedirs(checkpoint_dir, exist_ok=True)
+        stdout.info(f"Trial {trial._trial_id} parameters: layers={n_layers}, dropout={dropout}, dims={output_dims}")
 
-    dataset_info = {
-        "dataset_name": "FashionMNIST",
-        "source": "torchvision.datasets.FashionMNIST",
-        "version": torch.__version__,
-        "link": "https://github.com/zalandoresearch/fashion-mnist",
-        "batch_size": BATCHSIZE,
-        "train_samples": 55000,
-        "val_samples": 5000,
-        "test_samples": 10000
-    }
-    
-    mlflow_uri = "http://localhost:8080"
-    experiment_name = "Pytorch_Optuna"
+        # Use a trial-specific checkpoint directory
+        trial_runid = trial._trial_id
+        checkpoint_dir = os.path.join(DIR, "checkpoints", f"trial_{trial_runid}")
+        os.makedirs(checkpoint_dir, exist_ok=True)
 
-    mlflow.set_tracking_uri(mlflow_uri)
-    mlflow.set_experiment(experiment_name)
+        dataset_info = {
+            "dataset_name": "FashionMNIST",
+            "source": "torchvision.datasets.FashionMNIST",
+            "version": torch.__version__,
+            "link": "https://github.com/zalandoresearch/fashion-mnist",
+            "batch_size": BATCHSIZE,
+            "train_samples": 55000,
+            "val_samples": 5000,
+            "test_samples": 10000
+        }
+        
+        mlflow_uri = "http://localhost:8080"
+        experiment_name = "Pytorch_Optuna"
 
-
-    mlflow_logger = MLFlowLogger( # Pytoch Lightning
-        experiment_name=experiment_name,
-        tracking_uri=mlflow_uri,
-        run_name=f"Trial:{trial_runid}_{datetime.now().strftime('%d/%m/%Y_%H:%M')}"
-    )
-
-    # Save checkpoints
-    checkpoint_callback = ModelCheckpoint(
-        monitor='val_acc',
-        dirpath=checkpoint_dir,
-        filename=f"{trial_runid}-" + 'epoch={epoch}-val_acc={val_acc:.2f}',
-        save_top_k=3,
-        mode='max'
-    )
-    
-    early_stop_callback = EarlyStopping(
-        monitor='val_acc',
-        patience=3,
-        mode='max'
-    )
-
-    model = LightningNet(dropout, output_dims)
-    datamodule = FashionMNISTDataModule(data_dir=f"{DIR}/data", batch_size=BATCHSIZE)
+        mlflow.set_tracking_uri(mlflow_uri)
+        mlflow.set_experiment(experiment_name)
 
 
-    trainer = pl.Trainer(
-        logger=mlflow_logger,
-        enable_checkpointing=True,
-        max_epochs=EPOCHS,
-        accelerator="auto",
-        devices=1,
-        callbacks=[early_stop_callback, PyTorchLightningPruningCallback(trial, monitor="val_acc"), checkpoint_callback],
-    )
+        mlflow_logger = MLFlowLogger( # Pytoch Lightning
+            experiment_name=experiment_name,
+            tracking_uri=mlflow_uri,
+            run_name=f"Trial:{trial_runid}_{datetime.now().strftime('%d/%m/%Y_%H:%M')}"
+        )
+
+        # Save checkpoints
+        checkpoint_callback = ModelCheckpoint(
+            monitor='val_acc',
+            dirpath=checkpoint_dir,
+            filename=f"{trial_runid}-" + 'epoch={epoch}-val_acc={val_acc:.2f}',
+            save_top_k=3,
+            mode='max'
+        )
+        
+        early_stop_callback = EarlyStopping(
+            monitor='val_acc',
+            patience=3,
+            mode='max'
+        )
+
+        model = LightningNet(dropout, output_dims)
+        datamodule = FashionMNISTDataModule(data_dir=f"{DIR}/data", batch_size=BATCHSIZE)
+
+
+        trainer = pl.Trainer(
+            logger=mlflow_logger,
+            enable_checkpointing=True,
+            max_epochs=EPOCHS,
+            accelerator="auto",
+            devices=1,
+            callbacks=[early_stop_callback, PyTorchLightningPruningCallback(trial, monitor="val_acc"), checkpoint_callback],
+        )
 
  
-    # Start MLflow run first
-    with mlflow.start_run(nested=True) as run:
+        # Start MLflow run first
+        with mlflow.start_run(nested=True) as run:
+            mlflow_runid = run.info.run_id
+            stdout.info(f"MLflow run started with ID: {mlflow_runid}")
 
-        # for mlflow
-        mlflow_runid = run.info.run_id
-        
+            try:
+                # Log hyperparameters
+                hyperparameters = dict(n_layers=n_layers, dropout=dropout, output_dims=output_dims)
+                trainer.logger.log_hyperparams(hyperparameters)
+                
+                # Train the model
+                trainer.fit(model, datamodule=datamodule)
+                stdout.info(f"Training completed for trial {trial_runid}")
 
-        # Log hyperparameters
-        hyperparameters = dict(n_layers=n_layers, dropout=dropout, output_dims=output_dims)
-        trainer.logger.log_hyperparams(hyperparameters)
-        
-        # Train the model
-        trainer.fit(model, datamodule=datamodule)
+                mlflow.set_tag("mlflow.runName", f"trial:{trial_runid}_Summary")
 
-        mlflow.set_tag("mlflow.runName", f"trial:{trial_runid}_Summary")
+                # Load the best checkpoint into the model (if available)
+                if checkpoint_callback.best_model_path:
+                    ckpt_path = checkpoint_callback.best_model_path
+                    stdout.info(f"BEST CHECKPOINT PATH OF TRIAL {trial_runid}: {ckpt_path}")
 
-        # Load the best checkpoint into the model (if available)
-        if checkpoint_callback.best_model_path:
-            ckpt_path = checkpoint_callback.best_model_path
-            print(f"BEST CHECKPOINT PATH OF TRIAL {trial_runid}: {ckpt_path}")
+                    
+                    modelBest = LightningNet.load_from_checkpoint(ckpt_path, dropout=dropout, output_dims=output_dims)
+                    mlflow.pytorch.log_model(modelBest, f"Trial_{trial_runid}_BestModel")
+                    stdout.info("BEST MODEL LOADED")
 
-            
-            modelBest = LightningNet.load_from_checkpoint(ckpt_path, dropout=dropout, output_dims=output_dims)
-            mlflow.pytorch.log_model(modelBest, f"Trial_{trial_runid}_BestModel")
-            print("BEST MODEL LOADED")
+                    mlflow.log_param("best_checkpoint_path", ckpt_path)
 
-            mlflow.log_param("best_checkpoint_path", ckpt_path)
+                    for i, path in enumerate(checkpoint_callback.best_k_models.keys()):
+                        mlflow.log_param(f"checkpoint_{i}_path", path)
+                        mlflow.log_param(f"checkpoint_{i}_val_acc", checkpoint_callback.best_k_models[path].item())
 
-            for i, path in enumerate(checkpoint_callback.best_k_models.keys()):
-                mlflow.log_param(f"checkpoint_{i}_path", path)
-                mlflow.log_param(f"checkpoint_{i}_val_acc", checkpoint_callback.best_k_models[path].item())
+                    mlflow.log_artifacts(checkpoint_dir, artifact_path=f"Trial_{trial_runid}_ckpt")
 
-            mlflow.log_artifacts(checkpoint_dir, artifact_path=f"Trial_{trial_runid}_ckpt")
+                    # Test best model      
+                    test_result = trainer.test(modelBest, datamodule=datamodule, verbose=False)
+                    test_acc = test_result[0].get("test_acc", None)
+                    if test_acc is not None:
+                        stdout.info(f"Test accuracy: {test_acc}")
+                        mlflow.log_metric("test_acc", test_acc)
 
-            # Test best model      
-            test_result = trainer.test(modelBest, datamodule=datamodule, verbose=False)
-            test_acc = test_result[0].get("test_acc", None)
-            if test_acc is not None:
-                mlflow.log_metric("test_acc", test_acc)
+                # Evaluate on validation set
+                val_result = trainer.validate(modelBest, datamodule=datamodule, verbose=False)
+                val_acc = val_result[0].get("val_acc", None)
+                if val_acc is None:
+                    raise ValueError("val_acc not found in validation metrics")
+                
+                stdout.info(f"Trial {trial_runid} completed with validation accuracy: {val_acc}")
+                return val_acc
 
-        # Evaluate on validation set
-        val_result = trainer.validate(modelBest, datamodule=datamodule, verbose=False)
-        val_acc = val_result[0].get("val_acc", None)
-        if val_acc is None:
-            raise ValueError("val_acc not found in validation metrics")
-        
-    return val_acc
+            except Exception as e:
+                stderr.error(f"Error in trial {trial_runid}: {str(e)}", exc_info=True)
+                syslog.error(f"Training failure in trial {trial_runid}")
+                raise
+
+    except Exception as e:
+        stderr.error(f"Trial setup failed: {str(e)}", exc_info=True)
+        raise
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="PyTorch Lightning example.")
-    parser.add_argument(
-        "--pruning",
-        "-p",
-        action="store_true",
-        help="Activate the pruning feature. `MedianPruner` stops unpromising "
-        "trials at the early stages of training.",
-    )
-    args = parser.parse_args()
+    try:
+        parser = argparse.ArgumentParser(description="PyTorch Lightning example.")
+        parser.add_argument(
+            "--pruning",
+            "-p",
+            action="store_true",
+            help="Activate the pruning feature. `MedianPruner` stops unpromising "
+            "trials at the early stages of training.",
+        )
+        args = parser.parse_args()
 
-    # Create directories if they don't exist
-    os.makedirs("./data", exist_ok=True)
-    os.makedirs("./checkpoints", exist_ok=True)
+        stdout.info("-"*50)        
+        stdout.info("Starting optimization process")
+        syslog.info("Training server started")
 
-    pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
+        # Create directories if they don't exist
+        os.makedirs("./data", exist_ok=True)
+        os.makedirs("./checkpoints", exist_ok=True)
 
-    study = optuna.create_study(direction="maximize", pruner=pruner)
-    study.optimize(objective, n_trials=TRIALS, timeout=600)
+        pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
 
-    print("\n\n")
-    print("*"*20)
-    print("Number of finished trials: {}".format(len(study.trials)))
+        study = optuna.create_study(direction="maximize", pruner=pruner)
+        study.optimize(objective, n_trials=TRIALS, timeout=600)
+
+        # Log results
+        stdout.info(" ")
+        stdout.info("*"*30)
+        stdout.info("Optimization completed")
+        stdout.info(f"Number of finished trials: {len(study.trials)}")
+        trial = study.best_trial
+        stdout.info(f"Best trial: trial {trial._trial_id}")
+        stdout.info(f"Validation accuracy: {trial.value:.4f}")
+        
+        stdout.info("Best parameters:")
+        for key, value in trial.params.items():
+            stdout.info(f"\t{key}: {value:.4f}")
+        
+        stdout.info("*"*30)
+        stdout.info("-"*50)
+        stdout.info("\n")
+
+    except Exception as e:
+        stderr.error("Fatal error in optimization process", exc_info=True)
+        syslog.error("Training server crashed")
     
-    trial = study.best_trial
-    print(f"Best trial: trial {trial._trial_id}")
-
-    print("\tValidation accuracy: {:.4f}".format(trial.value))
-
-    print("\tParams: ")
-    for key, value in trial.params.items():
-        print("\t\t{}: {:.4f}".format(key, value))
-    
-    print("*"*20)
+    finally:
+        # Cleanup
+        logging_manager.shutdown()
 
 
 # mlflow server --host localhost --port 8080

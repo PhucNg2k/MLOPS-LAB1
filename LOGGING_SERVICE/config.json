@@ -1,0 +1,89 @@
+{
+    "version": 1,
+    "disable_existing_loggers": false,
+
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s | %(name)s | %(levelname)s | %(message)s"
+        },
+        "stdout_fmt": {
+            "format": "[STDOUT] %(message)s"
+        },
+        "stderr_fmt": {
+            "format": "[STDERR] %(message)s"
+        },
+        "syslog_fmt": {
+            "format": "[SYSTEM] %(message)s"
+        },
+        "server_fmt": {
+            "format": "[SERVER] %(asctime)s | %(name)s | %(levelname)s | %(message)s"
+        },
+        "api_fmt": {
+            "format": "[API] %(asctime)s | %(name)s | %(levelname)s | %(message)s"
+        }
+    },
+
+    "handlers": {
+        "stdout_handler": {
+            "class": "logging.StreamHandler",
+            "formatter": "stdout_fmt",
+            "stream": "ext://sys.stdout",
+            "level": "INFO"
+        },
+        "stderr_handler": {
+            "class": "logging.StreamHandler",
+            "formatter": "stderr_fmt",
+            "stream": "ext://sys.stderr",
+            "level": "ERROR"
+        },
+        "system_handler": {
+            "class": "logging.FileHandler",
+            "formatter": "syslog_fmt",
+            "filename": "Logs/system_log.log",
+            "level": "WARNING"
+        },
+        "appfile_handler": {
+            "class": "logging.FileHandler",
+            "formatter": "api_fmt",
+            "filename": "Logs/api_log.log",
+            "level": "DEBUG"
+        },
+        "server_handler": {
+            "class": "logging.FileHandler",
+            "formatter": "server_fmt",
+            "filename": "Logs/server_log.log",
+            "level": "DEBUG"
+        },
+        "queue_handler": {
+            "()": "logging.handlers.QueueHandler"
+        }
+    },
+
+    "loggers": {
+        "log.stdout": {
+            "handlers": ["stdout_handler", "server_handler"],
+            "level": "INFO",
+            "propagate": true
+        },
+        "log.stderr": {
+            "handlers": ["stderr_handler", "server_handler"],
+            "level": "ERROR",
+            "propagate": true
+        },
+        "log.syslog": {
+            "handlers": ["system_handler", "server_handler"],
+            "level": "WARNING",
+            "propagate": true
+        },
+        "log.appfile": {
+            "handlers": ["appfile_handler"],
+            "level": "DEBUG",
+            "propagate": true
+        }
+    },
+
+    "root": {
+        "handlers": ["queue_handler"],
+        "level": "DEBUG"
+    }
+}

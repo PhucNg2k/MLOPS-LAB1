@@ -65,11 +65,17 @@ def search_best_trial_model(run_path):
     """
     val_records = []
     trial_names = []
-
-    for idx, trial in enumerate(os.listdir(run_path)):
+    idxs_names = []
+    for trial in os.listdir(run_path):
         trial_names.append(trial)
         base_path = normalize_path(run_path, trial, "artifacts")
-        ckpt_folder = normalize_path(base_path, f"Trial_{idx}_ckpt")
+        
+        idx_name = 0
+        for fol in os.listdir(base_path):
+            idx_name = int(fol.split("_")[1])
+            break
+        idxs_names.append(idx_name)
+        ckpt_folder = normalize_path(base_path, f"Trial_{idx_name}_ckpt")
 
         temp = []
         for ckptfile in os.listdir(ckpt_folder):
@@ -90,7 +96,7 @@ def search_best_trial_model(run_path):
         run_path,
         trial_names[best_trial_idx],
         "artifacts",
-        f"Trial_{best_trial_idx}_BestModel"
+        f"Trial_{idxs_names[best_trial_idx]}_BestModel"
     )
     return best_model_dir
 
