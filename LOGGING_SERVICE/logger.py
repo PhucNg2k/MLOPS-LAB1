@@ -9,7 +9,8 @@ from typing import Optional
 from datetime import datetime
 
 class LoggingManager:
-    def __init__(self):
+    def __init__(self, service_name: str = "default"):
+        self.service_name = service_name
         # === Define the central log queue ===
         self.log_queue = queue.Queue(-1)
         self.listener = None
@@ -25,7 +26,7 @@ class LoggingManager:
         """Write a separator line to all log files."""
         separator = "#" * 50
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        session_start = f"\n{separator}\nNew Session Started at {timestamp}\n{separator}\n"
+        session_start = f"\n{separator}\nNew {self.service_name} Session Started at {timestamp}\n{separator}\n"
         
         log_files = [
             "Logs/api_log.log",
@@ -102,7 +103,7 @@ class LoggingManager:
             # Add QueueListener and output handlers for combined log
             central_handler = logging.FileHandler(self._get_log_path("Logs/app_combined.log"))
             central_handler.setFormatter(
-                logging.Formatter("[ROOT] %(asctime)s | %(name)s | %(levelname)s | %(message)s")
+                logging.Formatter(f"[{self.service_name.upper()}] %(asctime)s | %(name)s | %(levelname)s | %(message)s")
             )
             central_handler.setLevel(logging.DEBUG)
 
@@ -115,10 +116,10 @@ class LoggingManager:
 
             # Initialize logger references
             self.loggers = {
-                'stdout': logging.getLogger("log.stdout"),
-                'stderr': logging.getLogger("log.stderr"),
-                'syslog': logging.getLogger("log.syslog"),
-                'app': logging.getLogger("log.appfile")
+                'stdout': logging.getLogger(f"log.{self.service_name}.stdout"),
+                'stderr': logging.getLogger(f"log.{self.service_name}.stderr"),
+                'syslog': logging.getLogger(f"log.{self.service_name}.syslog"),
+                'app': logging.getLogger(f"log.{self.service_name}.appfile")
             }
         except Exception as e:
             raise RuntimeError(f"Failed to setup logging: {str(e)}")
@@ -139,48 +140,33 @@ class LoggingManager:
                 logger.removeHandler(handler)
         logging.shutdown()
 
-# Global logging manager instance
-_logging_manager = None
+# Global logging manager instances for different services
+api_logging_manager = LoggingManager(service_name="api")
+training_logging_manager = LoggingManager(service_name="training")
 
-def init_logging():
-    """Initialize the logging system."""
-    global _logging_manager
-    if _logging_manager is None:
-        _logging_manager = LoggingManager()
-        _logging_manager.setup_logging()
-        _logging_manager._write_separator_to_logs()
-    return _logging_manager
+# Initialize both managers
+api_logging_manager.setup_logging()
+training_logging_manager.setup_logging()
 
-def get_logger(name: str) -> Optional[logging.Logger]:
-    """Get a logger by name. Initializes logging system if needed."""
-    if _logging_manager is None:
-        init_logging()
-    return _logging_manager.get_logger(name)
+def get_logger(name: str, service: str = "default") -> Optional[logging.Logger]:
+    if service == "api":
+        return api_logging_manager.get_logger(name)
+    elif service == "training":
+        return training_logging_manager.get_logger(name)
+    else:
+        # For backward compatibility
+        default_manager = LoggingManager(service_name=service)
+        default_manager.setup_logging()
+        return default_manager.get_logger(name)
 
-def shutdown_logging():
-    """Shutdown the logging system."""
-    global _logging_manager
-    if _logging_manager:
-        _logging_manager.shutdown()
-        _logging_manager = None
+def shutdown_logging(service: str = None):
+    """Shutdown the logging system for a specific service or all services."""
+    if service == "api":
+        api_logging_manager.shutdown()
+    elif service == "training":
+        training_logging_manager.shutdown()
+    else:
+        # Shutdown all
+        api_logging_manager.shutdown()
+        training_logging_manager.shutdown()
 
-# Example usage
-if __name__ == "__main__":
-    try:
-        init_logging()
-        
-        # Get loggers
-        stdout_logger = get_logger('stdout')
-        stderr_logger = get_logger('stderr')
-        syslog_logger = get_logger('syslog')
-        app_logger = get_logger('app')
-
-        # Example logging
-        stdout_logger.info("Something to stdout")
-        stderr_logger.error("An error occurred")
-        syslog_logger.warning("System warning")
-        app_logger.debug("Debugging internal app logic")
-    
-    finally:
-        # Ensure proper cleanup
-        shutdown_logging()

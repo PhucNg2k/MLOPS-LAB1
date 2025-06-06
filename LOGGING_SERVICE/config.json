@@ -37,21 +37,27 @@
             "level": "ERROR"
         },
         "system_handler": {
-            "class": "logging.FileHandler",
+            "class": "logging.handlers.RotatingFileHandler",
             "formatter": "syslog_fmt",
             "filename": "Logs/system_log.log",
+            "maxBytes": 10485760,
+            "backupCount": 5,
             "level": "WARNING"
         },
-        "appfile_handler": {
-            "class": "logging.FileHandler",
+        "api_handler": {
+            "class": "logging.handlers.RotatingFileHandler",
             "formatter": "api_fmt",
             "filename": "Logs/api_log.log",
+            "maxBytes": 10485760,
+            "backupCount": 5,
             "level": "DEBUG"
         },
-        "server_handler": {
-            "class": "logging.FileHandler",
+        "training_handler": {
+            "class": "logging.handlers.RotatingFileHandler",
             "formatter": "server_fmt",
             "filename": "Logs/server_log.log",
+            "maxBytes": 10485760,
+            "backupCount": 5,
             "level": "DEBUG"
         },
         "queue_handler": {
@@ -60,23 +66,43 @@
     },
 
     "loggers": {
-        "log.stdout": {
-            "handlers": ["stdout_handler", "server_handler"],
+        "log.api.stdout": {
+            "handlers": ["stdout_handler", "api_handler"],
             "level": "INFO",
             "propagate": true
         },
-        "log.stderr": {
-            "handlers": ["stderr_handler", "server_handler"],
+        "log.api.stderr": {
+            "handlers": ["stderr_handler", "api_handler"],
             "level": "ERROR",
             "propagate": true
         },
-        "log.syslog": {
-            "handlers": ["system_handler", "server_handler"],
+        "log.api.syslog": {
+            "handlers": ["system_handler", "api_handler"],
             "level": "WARNING",
             "propagate": true
         },
-        "log.appfile": {
-            "handlers": ["appfile_handler"],
+        "log.api.appfile": {
+            "handlers": ["api_handler"],
+            "level": "DEBUG",
+            "propagate": true
+        },
+        "log.training.stdout": {
+            "handlers": ["stdout_handler", "training_handler"],
+            "level": "INFO",
+            "propagate": true
+        },
+        "log.training.stderr": {
+            "handlers": ["stderr_handler", "training_handler"],
+            "level": "ERROR",
+            "propagate": true
+        },
+        "log.training.syslog": {
+            "handlers": ["system_handler", "training_handler"],
+            "level": "WARNING",
+            "propagate": true
+        },
+        "log.training.appfile": {
+            "handlers": ["training_handler"],
             "level": "DEBUG",
             "propagate": true
         }
