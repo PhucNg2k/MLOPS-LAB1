@@ -12,9 +12,18 @@ scrape_configs:
         target_label: service
         replacement: 'api'
 
-  - job_name: 'training'
+  - job_name: 'training-fastapi'
     static_configs:
-      - targets: ['training:8000']
+      - targets: ['training:8001']
+    metrics_path: '/metrics'
+    relabel_configs:
+      - source_labels: [__name__]
+        target_label: service
+        replacement: 'training'
+
+  - job_name: 'training-prometheus'
+    static_configs:
+      - targets: ['training:8002']
     metrics_path: '/metrics'
     relabel_configs:
       - source_labels: [__name__]
@@ -28,6 +37,23 @@ scrape_configs:
       - source_labels: [__name__]
         target_label: service
         replacement: 'system'
+
+  - job_name: 'nvidia-dcgm'
+    static_configs:
+      - targets: ['nvidia-dcgm-exporter:9400']
+    relabel_configs:
+      - source_labels: [__name__]
+        target_label: service
+        replacement: 'gpu'
+
+  - job_name: 'nvidia-smi'
+    static_configs:
+      - targets: ['nvidia_exporter:9835']
+    metrics_path: '/metrics'
+    relabel_configs:
+      - source_labels: [__name__]
+        target_label: service
+        replacement: 'gpu'
 
 rule_files:
   - 'rules/*.yml' 

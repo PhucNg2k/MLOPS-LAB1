@@ -2,6 +2,10 @@ import argparse
 import os
 from typing import List
 from typing import Optional
+import time
+from threading import Thread
+import yaml
+import pickle
 
 import lightning.pytorch as pl
 from lightning.pytorch.callbacks import ModelCheckpoint, EarlyStopping
@@ -25,21 +29,39 @@ from torchvision import datasets
 from torchvision import transforms
 
 # Import logging service
-from LOGGING_SERVICE.logger import LoggingManager
+from LOGGING_SERVICE.logger import get_logger, shutdown_logging
 
-# Initialize logging
-logging_manager = LoggingManager()
-logging_manager.setup_logging()
+# Import monitoring
+from MONITORING_SERVICE.monitoring import training_metrics_manager
 
-# Get loggers
-syslog = logging_manager.get_logger('syslog')
-stdout = logging_manager.get_logger('stdout')
-stderr = logging_manager.get_logger('stderr')
+# Import shared model
+from model.model import Net
 
-BATCHSIZE = 128
-CLASSES = 10
-EPOCHS = 2
-TRIALS = 3
+# For metrics server
+from prometheus_client import start_http_server
+
+# Initialize training loggers
+stdout = get_logger('stdout', 'training')
+stderr = get_logger('stderr', 'training')
+syslog = get_logger('syslog', 'training')
+app_logger = get_logger('app', 'training')
+
+# Initialize the loggers
+if not all([stdout, stderr, syslog, app_logger]):
+    raise RuntimeError("Failed to initialize loggers")
+
+# Load config
+def load_config():
+    with open('train_config.yml', 'r') as f:
+        config = yaml.safe_load(f)
+    return config
+
+CONFIG = load_config()
+BATCHSIZE = CONFIG['training']['batch_size']
+CLASSES = CONFIG['training']['classes']
+EPOCHS = CONFIG['training']['epochs']
+TRIALS = CONFIG['training']['trials']
+TIMEOUT = CONFIG['training']['timeout']
 DIR = os.getcwd()
 
 # python 3.10.16
@@ -75,16 +97,41 @@ class LightningNet(pl.LightningModule):
 
     def training_step(self, batch: List[torch.Tensor], batch_idx: int) -> torch.Tensor:
         data, target = batch
+        
+        # Start timing
+        cpu_start = time.time()
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+            gpu_start = time.time()
+            
         output = self(data)
         loss = F.nll_loss(output, target)
+        
+        # Record timing
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+            gpu_time = time.time() - gpu_start
+        else:
+            gpu_time = 0
+        cpu_time = time.time() - cpu_start
+        
+        # Update metrics
+        training_metrics_manager.record_inference_metrics(gpu_time, cpu_time)
+        training_metrics_manager.record_training_metrics(loss=loss.item())
+        training_metrics_manager.update_gpu_metrics()
+        
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
-        return F.nll_loss(output, target)
+        return loss
 
     def validation_step(self, batch: List[torch.Tensor], batch_idx: int) -> None:
         data, target = batch
         output = self(data)
         pred = output.argmax(dim=1, keepdim=True)
         accuracy = pred.eq(target.view_as(pred)).float().mean()
+        
+        # Record metrics
+        training_metrics_manager.record_training_metrics(accuracy=accuracy.item())
+        
         self.val_accuracy = accuracy
         self.log("val_acc", accuracy)
         self.log("hp_metric", accuracy, on_step=False, on_epoch=True, prog_bar=True)
@@ -97,7 +144,18 @@ class LightningNet(pl.LightningModule):
         self.log("test_acc", accuracy, on_step=False, on_epoch=True, prog_bar=True)
 
     def configure_optimizers(self) -> optim.Optimizer:
-        return optim.Adam(self.model.parameters())
+        optimizer = optim.Adam(self.model.parameters())
+        # Record learning rate
+        training_metrics_manager.record_training_metrics(lr=optimizer.param_groups[0]['lr'])
+        return optimizer
+
+    def on_train_epoch_end(self):
+        # Calculate progress percentage
+        current_epoch = self.current_epoch + 1
+        total_epochs = self.trainer.max_epochs
+        progress = (current_epoch / total_epochs) * 100
+        
+        return super().on_train_epoch_end()
 
 
 class FashionMNISTDataModule(pl.LightningDataModule):
@@ -106,17 +164,18 @@ class FashionMNISTDataModule(pl.LightningDataModule):
         self.data_dir = data_dir
         self.batch_size = batch_size
 
-
-        # augmentation
-        self.train_transform = transforms.Compose([
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomRotation(10),
-            transforms.ToTensor()
-        ])
+        # augmentation based on config
+        transforms_list = [transforms.ToTensor()]
+        if CONFIG['data']['augmentation']['use_horizontal_flip']:
+            transforms_list.insert(0, transforms.RandomHorizontalFlip())
+        if CONFIG['data']['augmentation']['random_rotation']:
+            transforms_list.insert(0, transforms.RandomRotation(CONFIG['data']['augmentation']['random_rotation']))
         
+        self.train_transform = transforms.Compose(transforms_list)
         self.test_transform = transforms.ToTensor()
 
     def setup(self, stage: Optional[str] = None) -> None:
+        train_size, val_size = CONFIG['data']['train_val_split']
 
         self.mnist_test = datasets.FashionMNIST(
             self.data_dir, train=False, download=True, transform=self.test_transform
@@ -124,7 +183,7 @@ class FashionMNISTDataModule(pl.LightningDataModule):
         mnist_full = datasets.FashionMNIST(
             self.data_dir, train=True, download=True, transform=self.train_transform
         )
-        self.mnist_train, self.mnist_val = random_split(mnist_full, [55000, 5000])
+        self.mnist_train, self.mnist_val = random_split(mnist_full, [train_size, val_size])
 
         # Apply test transform to validation set
         self.mnist_val.dataset.transform = self.test_transform
@@ -154,7 +213,6 @@ class FashionMNISTDataModule(pl.LightningDataModule):
 
 def objective(trial: optuna.trial.Trial) -> float:
     try:
-        # Log trial start
         stdout.info("")
         stdout.info(f"Starting trial {trial._trial_id}")
 
@@ -162,10 +220,11 @@ def objective(trial: optuna.trial.Trial) -> float:
         pl.seed_everything(42)
 
         # We optimize the number of layers, hidden units in each layer and dropouts.
-        n_layers = trial.suggest_int("n_layers", 1, 3)
-        dropout = trial.suggest_float("dropout", 0.2, 0.5)
+        n_layers = trial.suggest_int("n_layers", CONFIG['model']['min_layers'], CONFIG['model']['max_layers'])
+        dropout = trial.suggest_float("dropout", CONFIG['model']['dropout_min'], CONFIG['model']['dropout_max'])
         output_dims = [
-            trial.suggest_int("n_units_l{}".format(i), 4, 128, log=True) for i in range(n_layers)
+            trial.suggest_int("n_units_l{}".format(i), CONFIG['model']['min_units'], CONFIG['model']['max_units'], log=True) 
+            for i in range(n_layers)
         ]
 
         stdout.info(f"Trial {trial._trial_id} parameters: layers={n_layers}, dropout={dropout}, dims={output_dims}")
@@ -186,18 +245,23 @@ def objective(trial: optuna.trial.Trial) -> float:
             "test_samples": 10000
         }
         
-        mlflow_uri = "http://localhost:8080"
+        mlflow_uri = "http://mlflow:5000"
         experiment_name = "Pytorch_Optuna"
 
         mlflow.set_tracking_uri(mlflow_uri)
+        # Set artifact location to be relative to WORKDIR
+        os.environ["MLFLOW_ARTIFACT_ROOT"] = "/app/mlartifacts"
+        stdout.info(f"Setting MLflow artifact root to: {os.environ['MLFLOW_ARTIFACT_ROOT']}")
+        stdout.info(f"Current working directory: {os.getcwd()}")
+        
         mlflow.set_experiment(experiment_name)
 
-
-        mlflow_logger = MLFlowLogger( # Pytoch Lightning
+        mlflow_logger = MLFlowLogger(
             experiment_name=experiment_name,
             tracking_uri=mlflow_uri,
             run_name=f"Trial:{trial_runid}_{datetime.now().strftime('%d/%m/%Y_%H:%M')}"
         )
+        stdout.info(f"MLflow logger configured")
 
         # Save checkpoints
         checkpoint_callback = ModelCheckpoint(
@@ -249,19 +313,45 @@ def objective(trial: optuna.trial.Trial) -> float:
                     ckpt_path = checkpoint_callback.best_model_path
                     stdout.info(f"BEST CHECKPOINT PATH OF TRIAL {trial_runid}: {ckpt_path}")
 
-                    
+                    # Load and prepare model for saving
+                    stdout.info(f"Loading best model from checkpoint...")
                     modelBest = LightningNet.load_from_checkpoint(ckpt_path, dropout=dropout, output_dims=output_dims)
-                    mlflow.pytorch.log_model(modelBest, f"Trial_{trial_runid}_BestModel")
-                    stdout.info("BEST MODEL LOADED")
+                    modelBest.eval()  # Set to evaluation mode
+                    modelBest = modelBest.cpu()  # Move to CPU before saving
 
-                    mlflow.log_param("best_checkpoint_path", ckpt_path)
-
-                    for i, path in enumerate(checkpoint_callback.best_k_models.keys()):
-                        mlflow.log_param(f"checkpoint_{i}_path", path)
-                        mlflow.log_param(f"checkpoint_{i}_val_acc", checkpoint_callback.best_k_models[path].item())
-
-                    mlflow.log_artifacts(checkpoint_dir, artifact_path=f"Trial_{trial_runid}_ckpt")
-
+                    # Log model with explicit artifact path
+                    artifact_path = f"Trial_{trial_runid}_BestModel"
+                    stdout.info(f"Attempting to save model with MLflow...")
+                    stdout.info(f"Artifact path: {artifact_path}")
+                    stdout.info(f"Model will be registered as: fashion_mnist_trial_{trial_runid}")
+                    
+                    # Debug directory permissions and existence
+                    artifact_root = os.environ.get('MLFLOW_ARTIFACT_ROOT', '/app/mlartifacts')
+                    stdout.info(f"Checking artifact root directory: {artifact_root}")
+                    if os.path.exists(artifact_root):
+                        stdout.info(f"Artifact root exists with permissions: {oct(os.stat(artifact_root).st_mode)[-3:]}")
+                    else:
+                        stdout.error(f"Artifact root directory does not exist!")
+                        os.makedirs(artifact_root, exist_ok=True, mode=0o777)
+                        stdout.info(f"Created artifact root with full permissions")
+                    
+                    # Ensure artifact path is relative to WORKDIR
+                    local_artifact_path = os.path.join(artifact_root,
+                                                     str(mlflow.active_run().info.experiment_id),
+                                                     mlflow_runid,
+                                                     'artifacts',
+                                                    )
+                    os.makedirs(local_artifact_path, exist_ok=True, mode=0o777)
+                    stdout.info(f"Created local artifact directory: {local_artifact_path}")
+                    
+                    # Save model directly using save_model
+                    mlflow.pytorch.save_model(
+                        pytorch_model=modelBest.model,  # Save only the inner model
+                        path=local_artifact_path,
+                        code_paths=['model/model.py']  # Include the model definition file
+                    )
+                    stdout.info("Model saved successfully with MLflow")
+                    
                     # Test best model      
                     test_result = trainer.test(modelBest, datamodule=datamodule, verbose=False)
                     test_acc = test_result[0].get("test_acc", None)
@@ -287,7 +377,7 @@ def objective(trial: optuna.trial.Trial) -> float:
         stderr.error(f"Trial setup failed: {str(e)}", exc_info=True)
         raise
 
-if __name__ == "__main__":
+def main():
     try:
         parser = argparse.ArgumentParser(description="PyTorch Lightning example.")
         parser.add_argument(
@@ -303,6 +393,10 @@ if __name__ == "__main__":
         stdout.info("Starting optimization process")
         syslog.info("Training server started")
 
+        # Start Prometheus metrics server on port 8002 (different from FastAPI)
+        start_http_server(8002)
+        stdout.info("Metrics server started on port 8002")
+
         # Create directories if they don't exist
         os.makedirs("./data", exist_ok=True)
         os.makedirs("./checkpoints", exist_ok=True)
@@ -310,7 +404,7 @@ if __name__ == "__main__":
         pruner = optuna.pruners.MedianPruner() if args.pruning else optuna.pruners.NopPruner()
 
         study = optuna.create_study(direction="maximize", pruner=pruner)
-        study.optimize(objective, n_trials=TRIALS, timeout=600)
+        study.optimize(objective, n_trials=TRIALS, timeout=TIMEOUT)
 
         # Log results
         stdout.info(" ")
@@ -335,7 +429,10 @@ if __name__ == "__main__":
     
     finally:
         # Cleanup
-        logging_manager.shutdown()
+        shutdown_logging('training')
+
+if __name__ == "__main__":
+    main()
 
 
 # mlflow server --host localhost --port 8080

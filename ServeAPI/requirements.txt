@@ -11,4 +11,6 @@ torch==2.6.0
 torchaudio==2.6.0
 torchmetrics==1.7.1
 torchvision==0.21.0
+prometheus-client 
+nvidia-ml-py3
 

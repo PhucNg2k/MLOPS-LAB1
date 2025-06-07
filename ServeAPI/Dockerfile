@@ -9,12 +9,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY requirements.txt .
+COPY ServeAPI/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Create necessary directories first
+RUN mkdir -p Logs mlruns mlartifacts static
+
 # Copy app files
-COPY main.py model.py utils.py ./
-COPY static ./static
+COPY ServeAPI/main.py .
+COPY ServeAPI/utils.py .
+COPY ServeAPI/static/* ./static/
+COPY LOGGING_SERVICE /app/LOGGING_SERVICE
+COPY MONITORING_SERVICE /app/MONITORING_SERVICE
+COPY model /app/model
 
 # Expose the port FastAPI runs on
 EXPOSE 8000

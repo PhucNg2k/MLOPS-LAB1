@@ -1,0 +1,20 @@
+training:
+  batch_size: 128
+  epochs: 2
+  trials: 3
+  timeout: 600  # in seconds
+  classes: 10
+
+model:
+  min_layers: 1
+  max_layers: 3
+  min_units: 4
+  max_units: 128
+  dropout_min: 0.2
+  dropout_max: 0.5
+
+data:
+  train_val_split: [55000, 5000]
+  augmentation:
+    random_rotation: 10
+    use_horizontal_flip: true 
