@@ -89,9 +89,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(http_requests_total[1m])",
-          "legendFormat": "{{method}} {{endpoint}}",
-          "refId": "A"
+          "expr": "rate(fastapi_app_requests_total[1m])",
+          "legendFormat": "{{method}} {{handler}} ({{status}})"
         }
       ]
     },
@@ -176,18 +175,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(http_requests_total{status=~\"5.*\"}[1m])) / sum(rate(http_requests_total[1m]))",
-          "legendFormat": "5xx Errors",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(http_requests_total{status=~\"4.*\"}[1m])) / sum(rate(http_requests_total[1m]))",
-          "legendFormat": "4xx Errors",
-          "refId": "B"
+          "expr": "sum(rate(fastapi_app_requests_total{status=~\"5.*|4.*\"}[1m])) / sum(rate(fastapi_app_requests_total[1m]))",
+          "legendFormat": "Error Rate"
         }
       ]
     },
@@ -254,7 +243,7 @@
       "id": 3,
       "options": {
         "legend": {
-          "calcs": ["mean", "max", "p95"],
+          "calcs": ["mean", "max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -264,7 +253,7 @@
           "sort": "desc"
         }
       },
-      "title": "API Latency",
+      "title": "Request Latency",
       "type": "timeseries",
       "targets": [
         {
@@ -272,9 +261,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(http_request_duration_seconds_sum[1m]) / rate(http_request_duration_seconds_count[1m])",
-          "legendFormat": "{{method}} {{endpoint}}",
-          "refId": "A"
+          "expr": "rate(fastapi_app_request_duration_seconds_sum[1m]) / rate(fastapi_app_request_duration_seconds_count[1m])",
+          "legendFormat": "{{method}} {{handler}} ({{status}})"
         }
       ]
     },
@@ -341,7 +329,7 @@
       "id": 4,
       "options": {
         "legend": {
-          "calcs": ["mean", "max", "p95"],
+          "calcs": ["mean", "max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -359,18 +347,192 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(model_inference_gpu_seconds_sum[1m]) / rate(model_inference_gpu_seconds_count[1m])",
-          "legendFormat": "GPU Time",
-          "refId": "A"
+          "expr": "rate(api_model_inference_cpu_seconds_sum[1m]) / rate(api_model_inference_cpu_seconds_count[1m])",
+          "legendFormat": "CPU Time"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(model_inference_cpu_seconds_sum[1m]) / rate(model_inference_cpu_seconds_count[1m])",
-          "legendFormat": "CPU Time",
-          "refId": "B"
+          "expr": "rate(api_model_inference_gpu_seconds_sum[1m]) / rate(api_model_inference_gpu_seconds_count[1m])",
+          "legendFormat": "GPU Time"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "title": "Model Confidence Score",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "100 * (rate(api_model_confidence_score_sum[1m]) / rate(api_model_confidence_score_count[1m]))",
+          "legendFormat": "Average Confidence"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "title": "GPU Utilization",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "api_gpu_utilization_percent",
+          "legendFormat": "GPU Utilization"
         }
       ]
     },
@@ -424,20 +586,20 @@
               }
             ]
           },
-          "unit": "percentunit"
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 12,
         "x": 0,
-        "y": 16
+        "y": 24
       },
-      "id": 5,
+      "id": 7,
       "options": {
         "legend": {
-          "calcs": ["mean", "max", "min"],
+          "calcs": ["max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -447,7 +609,7 @@
           "sort": "desc"
         }
       },
-      "title": "Model Confidence Score",
+      "title": "Total Requests",
       "type": "timeseries",
       "targets": [
         {
@@ -455,9 +617,66 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(model_confidence_score_sum[1m]) / rate(model_confidence_score_count[1m])",
-          "legendFormat": "Average Confidence",
-          "refId": "A"
+          "expr": "sum(fastapi_app_requests_total) by (method, handler, status)",
+          "legendFormat": "{{method}} {{handler}} ({{status}})"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "title": "Total POST /predict Requests",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(sum(fastapi_app_requests_total{method=\"POST\", handler=\"/predict\"}) without(instance, status))",
+          "legendFormat": ""
         }
       ]
     }
@@ -475,7 +694,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "ML API Metrics",
+  "title": "API Service Metrics",
   "version": 1,
   "weekStart": ""
-} 
+}

@@ -32,7 +32,11 @@ from torchvision import transforms
 from LOGGING_SERVICE.logger import get_logger, shutdown_logging
 
 # Import monitoring
-from MONITORING_SERVICE.monitoring import training_metrics_manager
+from MONITORING_SERVICE.monitoring import (
+    GPUMetricsManager,
+    ModelMetricsManager,
+    TrainingMetricsManager
+)
 
 # Import shared model
 from model.model import Net
@@ -49,6 +53,11 @@ app_logger = get_logger('app', 'training')
 # Initialize the loggers
 if not all([stdout, stderr, syslog, app_logger]):
     raise RuntimeError("Failed to initialize loggers")
+
+# Initialize metrics managers
+gpu_metrics = GPUMetricsManager(service_name="training")
+model_metrics = ModelMetricsManager(service_name="training")
+training_metrics = TrainingMetricsManager()
 
 # Load config
 def load_config():
@@ -116,9 +125,9 @@ class LightningNet(pl.LightningModule):
         cpu_time = time.time() - cpu_start
         
         # Update metrics
-        training_metrics_manager.record_inference_metrics(gpu_time, cpu_time)
-        training_metrics_manager.record_training_metrics(loss=loss.item())
-        training_metrics_manager.update_gpu_metrics()
+        gpu_metrics.update_gpu_metrics()
+        model_metrics.record_inference_metrics(gpu_time, cpu_time)
+        training_metrics.record_training_metrics(loss=loss.item())
         
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
@@ -130,7 +139,7 @@ class LightningNet(pl.LightningModule):
         accuracy = pred.eq(target.view_as(pred)).float().mean()
         
         # Record metrics
-        training_metrics_manager.record_training_metrics(accuracy=accuracy.item())
+        training_metrics.record_training_metrics(accuracy=accuracy.item())
         
         self.val_accuracy = accuracy
         self.log("val_acc", accuracy)
@@ -146,7 +155,7 @@ class LightningNet(pl.LightningModule):
     def configure_optimizers(self) -> optim.Optimizer:
         optimizer = optim.Adam(self.model.parameters())
         # Record learning rate
-        training_metrics_manager.record_training_metrics(lr=optimizer.param_groups[0]['lr'])
+        training_metrics.record_training_metrics(lr=optimizer.param_groups[0]['lr'])
         return optimizer
 
     def on_train_epoch_end(self):

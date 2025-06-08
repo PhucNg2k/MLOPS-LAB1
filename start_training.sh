@@ -47,4 +47,5 @@ fi
 
 echo "Training completed successfully!"
 kill $METRICS_PID
+# Signal successful completion to Docker
 exit 0 

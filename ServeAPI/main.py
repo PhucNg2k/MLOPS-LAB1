@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from prometheus_client import make_asgi_app
+from prometheus_fastapi_instrumentator import Instrumentator
 import time
 import mlflow
 
@@ -29,7 +29,7 @@ from utils import (
 
 # Import logging and monitoring
 from LOGGING_SERVICE.logger import get_logger, shutdown_logging
-from MONITORING_SERVICE.monitoring import api_metrics_manager as metrics_manager
+from MONITORING_SERVICE.monitoring import setup_instrumentator, gpu_metrics, model_metrics, metrics_app
 
 # Initialize API loggers
 app_logger = get_logger('app', 'api')
@@ -90,7 +90,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Add CORS middleware
+# Initialize instrumentation before anything else
+instrumentator = Instrumentator(
+    should_group_status_codes=True,
+    should_ignore_untemplated=True,
+    excluded_handlers=["/metrics"]
+)
+
+# Instrument the app
+instrumentator.instrument(app).expose(app)
+
+# Add CORS middleware after instrumentation
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -99,27 +109,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount Prometheus metrics endpoint
-metrics_app = make_asgi_app()
-app.mount("/metrics", metrics_app)
-
 # Mount static folder
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@app.middleware("http")
-async def add_metrics(request: Request, call_next):
-    start_time = time.time()
-    response = await call_next(request)
-    duration = time.time() - start_time
-    
-    metrics_manager.record_request_metrics(
-        method=request.method,
-        endpoint=request.url.path,
-        status=response.status_code,
-        duration=duration
-    )
-    
-    return response
+# Mount metrics endpoint last
+app.mount("/metrics", metrics_app)
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -163,8 +157,8 @@ async def predict_image(file: UploadFile = File(...)):
         cpu_time = time.time() - cpu_start
         
         # Update metrics
-        metrics_manager.update_gpu_metrics()
-        metrics_manager.record_inference_metrics(gpu_time, cpu_time, confidence)
+        gpu_metrics.update_gpu_metrics()
+        model_metrics.record_inference_metrics(gpu_time, cpu_time, confidence)
         
         app_logger.info(f"Prediction completed: {prediction}, confidence: {confidence}")
         

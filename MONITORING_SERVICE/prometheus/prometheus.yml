@@ -5,14 +5,14 @@ global:
 scrape_configs:
   - job_name: 'api'
     static_configs:
-      - targets: ['api:8000']
+      - targets: ['pytorchlightning-api-1:8000']
     metrics_path: '/metrics'
     relabel_configs:
       - source_labels: [__name__]
         target_label: service
         replacement: 'api'
 
-  - job_name: 'training-fastapi'
+  - job_name: 'training'
     static_configs:
       - targets: ['training:8001']
     metrics_path: '/metrics'
@@ -21,18 +21,9 @@ scrape_configs:
         target_label: service
         replacement: 'training'
 
-  - job_name: 'training-prometheus'
-    static_configs:
-      - targets: ['training:8002']
-    metrics_path: '/metrics'
-    relabel_configs:
-      - source_labels: [__name__]
-        target_label: service
-        replacement: 'training'
-
   - job_name: 'node-exporter'
     static_configs:
-      - targets: ['node-exporter:9100']
+      - targets: ['pytorchlightning-node-exporter-1:9100']
     relabel_configs:
       - source_labels: [__name__]
         target_label: service
@@ -48,7 +39,7 @@ scrape_configs:
 
   - job_name: 'nvidia-smi'
     static_configs:
-      - targets: ['nvidia_exporter:9835']
+      - targets: ['nvidia_smi_exporter:9835']
     metrics_path: '/metrics'
     relabel_configs:
       - source_labels: [__name__]
