@@ -162,9 +162,23 @@ All logs are stored in the `Logs` directory:
 - Logs are rotated daily with 30-day retention
 - Custom Grafana dashboards are provisioned automatically
 
-## 🎥 Video Demo
+## 🎥 Project Development Videos
 
-[![Demo Video](https://img.youtube.com/vi/mela8dFpKq0/0.jpg)](https://youtu.be/6A9RmyL02_k)
+### Lab Progress Demonstrations
+
+1. **Lab 1: Model Training Pipeline** 
+   - Implementation of PyTorch Lightning + Optuna + MLflow
+   - [![Lab 1 Demo](https://img.shields.io/badge/Watch_Demo-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=mela8dFpKq0)
+
+2. **Lab 2: FastAPI Model Serving**
+   - Deployment of model inference API
+   - [![Lab 2 Demo](https://img.shields.io/badge/Watch_Demo-red?style=for-the-badge&logo=youtube)](https://youtu.be/6A9RmyL02_k)
+
+3. **Lab 3: Monitoring & Logging**
+   - Integration of Prometheus, Grafana, and logging system
+   - [![Lab 3 Demo](https://img.shields.io/badge/Watch_Demo-red?style=for-the-badge&logo=youtube)](https://youtu.be/E-gGJO-gUTs)
+
+Each video demonstrates the key features and functionality implemented in that development phase.
 
 ## 👤 Author
 
