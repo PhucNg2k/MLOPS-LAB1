@@ -1,110 +1,173 @@
-# 🚀 PyTorch Lightning with Optuna and MLflow
+# 🚀 MLOps Pipeline: Training, Serving, and Monitoring
 
-<div align="center"> 
-  <span style="background-color:white; padding:6px; border-radius:8px;">
-    <img src="https://raw.githubusercontent.com/pytorch/pytorch/master/docs/source/_static/img/pytorch-logo-dark.png" alt="PyTorch" height="60"/>
-  </span>
-  &nbsp;&nbsp;&nbsp;
-  <span style="background-color:white; padding:6px; border-radius:8px;">
-    <img src="https://raw.githubusercontent.com/Lightning-AI/lightning/master/docs/source-pytorch/_static/images/logo.png" alt="PyTorch Lightning" height="60"/>
-  </span>
-  &nbsp;&nbsp;&nbsp;
-  <span style="background-color:white; padding:6px; border-radius:8px;">
-    <img src="https://raw.githubusercontent.com/optuna/optuna/master/docs/image/optuna-logo.png" alt="Optuna" height="60"/>
-  </span>
-  <br>
-  <img src="https://img.shields.io/badge/MLflow-0194E2?style=for-the-badge&logo=mlflow&logoColor=white" alt="MLflow Badge"/>
+<div align="center">
+  <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 20px;">
+    <img src="https://raw.githubusercontent.com/pytorch/pytorch/master/docs/source/_static/img/pytorch-logo-dark.png" alt="PyTorch" height="40"/>
+    <img src="https://raw.githubusercontent.com/Lightning-AI/lightning/master/docs/source-pytorch/_static/images/logo.png" alt="PyTorch Lightning" height="40"/>
+    <img src="https://raw.githubusercontent.com/optuna/optuna/master/docs/image/optuna-logo.png" alt="Optuna" height="40"/>
+  </div>
+  
+  <div style="margin-bottom: 20px;">
+    <img src="https://img.shields.io/badge/MLflow-0194E2?style=for-the-badge&logo=mlflow&logoColor=white" alt="MLflow"/>
+    <img src="https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi" alt="FastAPI"/>
+    <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"/>
+    <img src="https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&logo=prometheus&logoColor=white" alt="Prometheus"/>
+    <img src="https://img.shields.io/badge/Grafana-F46800?style=for-the-badge&logo=grafana&logoColor=white" alt="Grafana"/>
+  </div>
 </div>
 
-## 👤 Student Information
+## 📊 Project Overview
 
-| Full Name           | Student ID |
-|---------------------|-----------|
-| Nguyen Thuong Phuc  | 22521134  |
+A complete MLOps pipeline combining:
+- **Model Training**: Neural network training for image classification
+- **Model Serving**: FastAPI service for model inference
+- **Monitoring & Logging**: Comprehensive system monitoring and logging
 
----
+## 🏗️ Architecture Components
 
-## 🔧 Pipeline Overview
+### 1. Model Training Pipeline
+- **PyTorch Lightning**: Streamlined training pipeline with clean code organization
+- **Optuna**: Automated hyperparameter optimization with multiple trials
+- **MLflow**: Experiment tracking, metrics logging, and model registry
+- **Dataset**: FashionMNIST for image classification
 
-This project builds a **model training pipeline** for **image classification** using:
-- **Optuna** for automatic hyperparameter optimization.
-- **MLflow** for experiment tracking (logs, checkpoints, hyperparameters,...).
-- **PyTorch Lightning** to simplify training loops and organize code clearly.
+#### MLflow Experiment Tracking
+Each training experiment is tracked with detailed metrics:
+- **Training Metrics**:
+  - Loss scores
+  - Validation accuracy
+  - Test accuracy
+- **Model Parameters**:
+  - Output dims
+  - Number of layers
+  - Dropout rates
 
-The pipeline operates completely automatically:
-1. Train neural networks with the FashionMnist dataset
-2. **Create an Optuna study** to run multiple training trials with different hyperparameters, optimizing for validation accuracy.
-3. **MLflow** records all information for each trial: model, val/test accuracy, checkpoints,...
-4. Automatically stop inefficient trials early with `EarlyStopping` and `PruningCallback`.
-5. Automatically save and reload checkpoints with the best validation accuracy.
+### 2. Model Serving API
+- **FastAPI**: High-performance API for model inference
+- **Docker**: Containerized deployment
+- **Async Processing**: Efficient request handling
+- **Input Validation**: Robust error handling
 
-> 🔥 **Innovations / creative points**:  
-> - Fully integrates all 3 modern tools: PytorchLightning + Optuna + MLflow.
-> - Restructured pipeline for easy expansion, easy management of logs and models.
-> - Can run with just one command line (`python pl_optuna.py -p`), everything else is automated.
+### 3. Monitoring & Logging
+- **Prometheus**:
+  - Resource metrics collection (CPU, Memory, GPU)
+  - Server performance monitoring
+  - API request metrics
+  - Health checks for all services
+- **Grafana**:
+  - Custom dashboards for:
+    - Training server metrics
+    - API server performance
+    - NVIDIA GPU utilization
+- **Python Logging**:
+  - Structured logs for all services
+  - Log rotation and retention
+  - Logs stored in 'Logs' directory
 
----
+## 🚀 Getting Started
 
-## 🧠 Technologies Used and Key Features
+### Prerequisites
+- Docker and Docker Compose
+- NVIDIA GPU (optional, for GPU training)
+- NVIDIA Container Toolkit (for GPU support)
 
-| Technology          | Role                                                       |
-|-------------------|---------------------------------------------------------------|
-| **PyTorch Lightning** | Organize clean training loops, support for callbacks, automatic logging |
-| **Optuna**         | Hyperparameter optimization with pruning                          |
-| **MLflow**         | Log experiments, checkpoints, models, metrics                |
-| **FashionMNIST**   | Demo dataset (28x28 fashion images)                      |
+### Quick Start
 
----
-
-## Installation Guide
-
-1. Clone the project from GitHub:
+1. Clone the repository:
    ```bash
    git clone https://github.com/PhucNg2k/MLOPS-LAB1.git
    cd MLOPS-LAB1
    ```
-2. Install the necessary libraries:
+
+2. Start all services with a single command:
    ```bash
-   pip install -r requirements.txt
+   # build services
+   docker compose build
+
+   # start project
+   docker compose up -d
    ```
 
-## Usage Guide
+This will launch:
+- Training pipeline with MLflow UI
+- FastAPI service (after training completes)
+- Prometheus monitoring
+- Grafana dashboards
+- Logging service
 
-**Step 1: Start the MLflow Server**
+### Accessing Services
 
-Open a terminal and run the following command to start the MLflow server:
+- **MLflow UI**: http://localhost:5000
+- **FastAPI**: http://localhost:8000
+- **FastAPI Swagger**: http://localhost:8000/docs
+- **Prometheus**: http://localhost:9090
+- **Grafana**: http://localhost:3000
 
-```bash
-mlflow server --host localhost --port 8080
-```
+## 📊 Monitoring & Logging
 
-The MLflow interface will be available at http://localhost:8080.
+### Prometheus Metrics
+- Server resource utilization
+- API request counts and latencies
+- GPU metrics (NVIDIA GPU)
+- Custom metrics for model inference
 
-**Step 2: Run the training script**
+### Grafana Dashboards
+- Training server Dashboard
+    - CPU usage
+    - GPU usage (NVIDIA)
+    - RAM usage
+    - Disk space, disk IO
+    - Network IO 
+- API Performance Dashboard
+  - Request rates
+  - Response times
+  - Error rates
+  - Inference speed (CPU time và GPU time)
+  - Confidence score
+  - Total requests count
+- GPU Dashboard
+  - GPU utilization
+  - Memory usage
+  - Temperature
 
-Open another terminal and run the training script with pruning enabled:
+### Logging
+All logs are stored in the `Logs` directory:
+- `server_log.log`: Training server logs
+- `api_log.log`: API server logs
+- `system_log.log`: Critical system issues logs
+- `app_combined.log`": Combining training server and api logs.
 
-```bash
-python pl_optuna.py -p
-```
+## 🔄 Pipeline Flow
 
-## Results
+1. **Training Phase**:
+   - Hyperparameter optimization with Optuna
+   - Multiple training trials
+   - Metrics logged to MLflow
+   - Best model saved automatically
 
-The results of each trial will be displayed in the terminal (accuracy, params,...).
+2. **Serving Phase**:
+   - Best model loaded from 'mlartifacts' into FastAPI service
+   - Ready for inference requests
+   - Performance monitored by Prometheus
 
-MLflow UI will store:
+3. **Monitoring**:
+   - Continuous metric collection
+   - Real-time dashboard updates
+   - Health checks and alerts
 
-+ Hyperparameters, metrics
-+ Best model checkpoints
-+ Logs, artifacts
+## 📝 Notes
 
-Run names will be set with readable identifiers (E.g.: Trial:0_14/04/2025_18:32)
-
-## Notes
-Make sure the mlflow server is started before running the training script.
-
-You can modify the pl_optuna.py file to customize experiments according to your needs.
+- Training must complete before API service starts
+- GPU metrics available only with NVIDIA GPUs
+- Logs are rotated daily with 30-day retention
+- Custom Grafana dashboards are provisioned automatically
 
 ## 🎥 Video Demo
 
-[![Demo Video](https://img.youtube.com/vi/mela8dFpKq0/0.jpg)](https://www.youtube.com/watch?v=mela8dFpKq0)
+[![Demo Video](https://img.youtube.com/vi/mela8dFpKq0/0.jpg)](https://youtu.be/6A9RmyL02_k)
+
+## 👤 Author
+
+| Full Name           | Student ID |
+|---------------------|-----------|
+| Nguyen Thuong Phuc  | 22521134  |
